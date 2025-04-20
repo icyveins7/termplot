@@ -8,6 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "termcolor @ git+https://github.com/termcolor/termcolor.git@fd08149"
 ]
 
 [tool.poetry]
