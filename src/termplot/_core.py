@@ -5,7 +5,7 @@ class Figure:
         self,
         dims: tuple[int, int] = (-1, -1)
     ):
-        rows, cols = shutil.get_terminal_size()
+        cols, rows = shutil.get_terminal_size()
         self._dims = (
             dims[0] if dims[0] > 0 else rows,
             dims[1] if dims[1] > 0 else cols
@@ -15,13 +15,36 @@ class Figure:
     def __repr__(self) -> str:
         return f"<termplot.Figure, dims=({self._dims[0]}, {self._dims[1]})>"
 
-    def _make_lines(self, dims: tuple[int, int]) -> list[str]:
-        lines = [" " * dims[1] for _ in range(dims[0])]
+    def _make_lines(self, dims: tuple[int, int]) -> list[list]:
+        # pre-allocation for size?
+        lines = [[" "] * dims[1] for _ in range(dims[0])]
         return lines
 
     def stitch(self) -> str:
-        return "\n".join(self._lines)
+        return "\n".join(("".join(line) for line in self._lines))
+
+    def drawBorder(self):
+        self._lines[0][0] = "\u256D" # topleft
+        self._lines[0][-1] = "\u256E" # topright
+        self._lines[-1][0] = "\u2570" # bottomleft
+        self._lines[-1][-1] = "\u256F" # bottomright
+
+        # top edge
+        self._lines[0][1:-1] = "\u2500" * (self._dims[1] - 2)
+        # bottom edge
+        self._lines[-1][1:-1] = "\u2500" * (self._dims[1] - 2)
+        for i in range(1, self._dims[0]-1):
+            # left edge
+            self._lines[i][0] = "\u2502"
+            # right edge
+            self._lines[i][-1] = "\u2502"
 
     def show(self):
         print(f"{self.stitch()}\n")
+
+if __name__ == "__main__":
+    f = Figure()
+    print(f)
+    f.drawBorder()
+    f.show()
 
