@@ -3,12 +3,12 @@ name = "termplot"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "icyveins7",email = "icyveins@hotmail.com"},
 ]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "termcolor @ git+https://github.com/termcolor/termcolor.git@fd08149"
+    "termcolor (>=3.1.0,<4.0.0)"
 ]
 
 [tool.poetry]
