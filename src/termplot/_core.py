@@ -1,23 +1,20 @@
 import shutil
-from typing import Iterable
+from typing import Iterable, Tuple
 import warnings
 import numpy as np
 
 class Figure:
     def __init__(
         self,
-        dims: tuple[int, int] = (-1, -1),
-        withBorder: bool = True
+        dims: tuple[int, int] = (-1, -1)
     ):
-        self._withBorder = withBorder
         cols, rows = shutil.get_terminal_size()
         self._dims = (
             dims[0] if dims[0] > 0 else rows - 3, # -3 to leave some vertical buffer
             dims[1] if dims[1] > 0 else cols
         )
         self._lines = self._make_lines(self._dims)
-        # TODO: i think i should store the drawableROI instead
-        self._drawableDims = self._dims if not self._withBorder else (
+        self._drawableDims = (
             self._dims[0] - 2, self._dims[1] - 2
         )
 
@@ -27,24 +24,84 @@ class Figure:
     @property
     def lines(self) -> list[list[str]]:
         """
-        Primarily for debugging.
+        Primarily for debugging. Includes the border characters.
         """
         return self._lines
 
-    def __getitem__(self, row: int, col: slice | int) -> list[str]:
+    # ============================ INDEXING ============================
+
+    def _translate_border_row_index(self, idx: int):
+        return self._dims[0] - 1 + idx if idx < 0 else idx + 1
+
+    def _translate_border_col_index(self, idx: int):
+        return self._dims[1] - 1 + idx if idx < 0 else idx + 1
+
+    def _index_without_border(
+        self,
+        row: slice | int,
+        col: slice | int
+    ) -> tuple[slice | int, slice | int]:
+        print(self._dims)
+        print(row, col)
+        if isinstance(row, slice):
+            if row.start is None:
+                rowstart = self._translate_border_row_index(0)
+            else:
+                rowstart = self._translate_border_row_index(row.start)
+
+            if row.stop is None:
+                rowstop = self._translate_border_row_index(self._drawableDims[0])
+            else:
+                rowstop = self._translate_border_row_index(row.stop)
+
+            row = slice(rowstart, rowstop)
+        else:
+            row = self._translate_border_row_index(row)
+
+        if isinstance(col, slice):
+            if col.start is None:
+                colstart = self._translate_border_col_index(0)
+            else:
+                colstart = self._translate_border_col_index(col.start)
+
+            if col.stop is None:
+                colstop = self._translate_border_col_index(self._drawableDims[1])
+            else:
+                colstop = self._translate_border_col_index(col.stop)
+
+            col = slice(colstart, colstop)
+        else:
+            col = self._translate_border_col_index(col)
+
+        print(row, col)
+        return row, col
+
+    def __getitem__(
+        self,
+        index: Tuple[slice | int, slice | int]
+    ) -> list[list[str]]:
+        row, col = self._index_without_border(index[0], index[1])
         return self._lines[row][col]
 
-    def setLine(self, row: int, line: list[str]):
-        if len(line) != self._drawableDims[1]:
-            raise ValueError(
-                f"Line must be the same length as the drawable width {self._drawableDims[1]}"
-            )
+    def __setitem__(
+        self,
+        index: Tuple[slice | int, slice | int],
+        value: str | list[str]
+    ):
+        row, col = self._index_without_border(index[0], index[1])
+        if isinstance(row, int):
+            prevLineLength = len(self._lines[row])
+            self._lines[row][col] = value
+            if len(self._lines[row]) != prevLineLength:
+                raise ValueError("Setting line caused change in length")
+        else:
+            for i, line in enumerate(self._lines):
+                prevLineLength = len(line)
+                line[col] = value[i]
+                if len(line) != prevLineLength:
+                    raise ValueError("Setting line caused change in length")
 
-        # TODO: handle correctly
-        # if row < 0 or row >= self._drawableDims[0]:
-        #     raise ValueError(
-        #         f"Row must be between 0 and the drawable height {self._drawableDims[0]}"
-        #     )
+    # ========================== DRAWING ==============================
 
     def _make_lines(self, dims: tuple[int, int]) -> list[list]:
         # pre-allocation for size?
@@ -71,14 +128,15 @@ class Figure:
             self._lines[i][-1] = "\u2502"
 
     def show(self):
-        if self._withBorder:
-            self._drawBorder()
+        self._drawBorder()
+        for line in self._lines:
+            print(f"Checking line {line}")
+            assert(len(line) == self._dims[1])
         print(f"{self.stitch()}\n")
 
     def plotBarChart(
         self,
         data: list | tuple | np.ndarray,
-        autoExtend: bool = False,
         labels: list[str] | None = None,
         maximumLabelLength: int = 8,
         bounds: tuple[float, float] | None = None,
@@ -91,14 +149,18 @@ class Figure:
         if labels is None:
             labels = [str(i) for i in range(len(data))]
 
-        chartMaxLength = len(self._lines[0]) - maximumLabelLength
-        for i, line in enumerate(self._lines):
+        chartMaxLength = self._drawableDims[1] - maximumLabelLength
+        for i in range(self._drawableDims[0]):
             if i >= len(data):
                 warnings.warn("More data than lines")
                 break
             l = int((data[i] - bounds[0]) / span * chartMaxLength)
-            line[:l] = symbol
-            line[-maximumLabelLength:] = f"{labels[i]:{maximumLabelLength}}"
+            self[i, :l] = [symbol] * l
+
+            labelstr = f" {labels[i]:{maximumLabelLength-1}}"
+            self[i, -maximumLabelLength:] = labelstr
+            print(self[i, :])
+            print(self._lines[i])
 
         return self._lines
 
