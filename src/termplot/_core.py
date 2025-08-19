@@ -41,8 +41,6 @@ class Figure:
         row: slice | int,
         col: slice | int
     ) -> tuple[slice | int, slice | int]:
-        print(self._dims)
-        print(row, col)
         if isinstance(row, slice):
             if row.start is None:
                 rowstart = self._translate_border_row_index(0)
@@ -73,7 +71,6 @@ class Figure:
         else:
             col = self._translate_border_col_index(col)
 
-        print(row, col)
         return row, col
 
     def __getitem__(
@@ -108,31 +105,42 @@ class Figure:
         lines = [[" "] * dims[1] for _ in range(dims[0])]
         return lines
 
-    def stitch(self) -> str:
-        return "\n".join(("".join(line) for line in self._lines))
+    def stitch(self, lastOccupiedRow: int | None = None) -> str:
+        lastOccupiedRow = self._dims[1] - 2 if lastOccupiedRow is None else lastOccupiedRow
+        return "\n".join(("".join(line) for i, line in enumerate(self._lines) if i <= lastOccupiedRow + 1))
 
-    def _drawBorder(self):
+    def _getLastOccupiedRow(self):
+        occupiedRows = [
+            i for i, line in enumerate(self._lines)
+            if not all([j == " " for j in line])
+        ]
+        lastRow = np.max(occupiedRows)
+        return lastRow
+
+    def _drawBorder(self, lastOccupiedRow: int | None = None):
+        # With border, default is -2 for last occupied row, since -1 is the border itself
+        lastOccupiedRow = self._dims[0] - 2 if lastOccupiedRow is None else lastOccupiedRow
         self._lines[0][0] = "\u256D" # topleft
         self._lines[0][-1] = "\u256E" # topright
-        self._lines[-1][0] = "\u2570" # bottomleft
-        self._lines[-1][-1] = "\u256F" # bottomright
+        self._lines[lastOccupiedRow+1][0] = "\u2570" # bottomleft
+        self._lines[lastOccupiedRow+1][-1] = "\u256F" # bottomright
 
         # top edge
         self._lines[0][1:-1] = "\u2500" * (self._dims[1] - 2)
         # bottom edge
-        self._lines[-1][1:-1] = "\u2500" * (self._dims[1] - 2)
-        for i in range(1, self._dims[0]-1):
+        self._lines[lastOccupiedRow+1][1:-1] = "\u2500" * (self._dims[1] - 2)
+        for i in range(1, lastOccupiedRow + 1):
             # left edge
             self._lines[i][0] = "\u2502"
             # right edge
             self._lines[i][-1] = "\u2502"
 
-    def show(self):
-        self._drawBorder()
-        for line in self._lines:
-            print(f"Checking line {line}")
-            assert(len(line) == self._dims[1])
-        print(f"{self.stitch()}\n")
+    def show(self, shrinkToFit: bool = True) -> str:
+        lastOccupiedRow = self._getLastOccupiedRow() if shrinkToFit else None
+        self._drawBorder(lastOccupiedRow)
+        toPrint = self.stitch(lastOccupiedRow)
+        print(f"{toPrint}\n")
+        return toPrint
 
     def plotBarChart(
         self,
@@ -150,17 +158,14 @@ class Figure:
             labels = [str(i) for i in range(len(data))]
 
         chartMaxLength = self._drawableDims[1] - maximumLabelLength
-        for i in range(self._drawableDims[0]):
-            if i >= len(data):
-                warnings.warn("More data than lines")
-                break
+        if len(data) > self._drawableDims[0]:
+            raise ValueError(f"More data ({len(data)}) than lines ({self._drawableDims[0]})")
+        for i in range(len(data)):
             l = int((data[i] - bounds[0]) / span * chartMaxLength)
             self[i, :l] = [symbol] * l
 
             labelstr = f" {labels[i]:{maximumLabelLength-1}}"
             self[i, -maximumLabelLength:] = labelstr
-            print(self[i, :])
-            print(self._lines[i])
 
         return self._lines
 
@@ -168,5 +173,6 @@ if __name__ == "__main__":
     f = Figure()
     print(f)
     f.plotBarChart([1,2,3])
-    f.show()
+    # f.show()
+    f.show(False)
 
