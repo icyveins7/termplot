@@ -1,4 +1,7 @@
 import shutil
+from typing import Iterable
+import warnings
+import numpy as np
 
 class Figure:
     def __init__(
@@ -9,7 +12,7 @@ class Figure:
         self._withBorder = withBorder
         cols, rows = shutil.get_terminal_size()
         self._dims = (
-            dims[0] if dims[0] > 0 else rows,
+            dims[0] if dims[0] > 0 else rows - 3, # -3 to leave some vertical buffer
             dims[1] if dims[1] > 0 else cols
         )
         self._lines = self._make_lines(self._dims)
@@ -20,6 +23,16 @@ class Figure:
 
     def __repr__(self) -> str:
         return f"<termplot.Figure, dims=({self._dims[0]}, {self._dims[1]})>"
+
+    @property
+    def lines(self) -> list[list[str]]:
+        """
+        Primarily for debugging.
+        """
+        return self._lines
+
+    def __getitem__(self, row: int, col: slice | int) -> list[str]:
+        return self._lines[row][col]
 
     def setLine(self, row: int, line: list[str]):
         if len(line) != self._drawableDims[1]:
@@ -62,8 +75,36 @@ class Figure:
             self._drawBorder()
         print(f"{self.stitch()}\n")
 
+    def plotBarChart(
+        self,
+        data: list | tuple | np.ndarray,
+        autoExtend: bool = False,
+        labels: list[str] | None = None,
+        maximumLabelLength: int = 8,
+        bounds: tuple[float, float] | None = None,
+        symbol: str = "*",
+    ):
+        if bounds is None:
+            bounds = (0, np.max(data))
+        span = bounds[1] - bounds[0]
+
+        if labels is None:
+            labels = [str(i) for i in range(len(data))]
+
+        chartMaxLength = len(self._lines[0]) - maximumLabelLength
+        for i, line in enumerate(self._lines):
+            if i >= len(data):
+                warnings.warn("More data than lines")
+                break
+            l = int((data[i] - bounds[0]) / span * chartMaxLength)
+            line[:l] = symbol
+            line[-maximumLabelLength:] = f"{labels[i]:{maximumLabelLength}}"
+
+        return self._lines
+
 if __name__ == "__main__":
     f = Figure()
     print(f)
+    f.plotBarChart([1,2,3])
     f.show()
 
